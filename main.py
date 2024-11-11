@@ -43,7 +43,7 @@ from utils import parse_args, build_abcd_params_config
 
 def execute_abcd_assessment_for_videos(config: Configuration):
   """Execute ABCD Assessment for all brand videos in GCS"""
-
+  print("Hello, World!")
   prompt_params = PromptParams(
       config.brand_name,
       config.brand_variations,
