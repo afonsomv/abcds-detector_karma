@@ -127,30 +127,7 @@ class VertexAIService:
                     )
                     wait = 10 * 2**this_retry
                     time.sleep(wait)
-            except Exception as ex:
-                print("GENERAL EXCEPTION...\n")
-                error_message = str(ex)
-                # Check quota issues for now
-                if (
-                    "429 Quota exceeded" in error_message
-                    or "503 The service is currently unavailable" in error_message
-                    or "500 Internal error encountered" in error_message
-                    or "403" in error_message
-                ):
-                    if config.verbose:
-                        print(
-                            f"Error {error_message}. Retrying {retries} times using exponential backoff. Retry number {this_retry + 1}...\n"
-                        )
-                    # Retry request
-                    wait = 10 * 2**this_retry
-                    time.sleep(wait)
-                else:
-                    if config.verbose:
-                        print(
-                            f"ERROR: the following issue can't be retried: {error_message}\n"
-                        )
-                    # Raise exception for non-retriable errors
-                    raise
+
         return ""
 
     def _get_modality_params(self, prompt: str, params: LLMParameters) -> list[any]:
