@@ -86,48 +86,32 @@ class VertexAIService:
         Returns:
             response.text: a string with the generated response
         """
+        print("---execute_gemini_pro")
         retries = 3
         for this_retry in range(retries):
-            try:
-                print(f"prompt: {prompt}")
-                print(f"params: {params}")
-                vertexai.init(project=self.project_id, location=params.location)
-                model = GenerativeModel(params.model_name)
-                modality_params = self._get_modality_params(prompt, params)
-                response = model.generate_content(
-                    modality_params,
-                    generation_config=GenerationConfig(
-                        temperature=params.generation_config.get("temperature"),
-                        max_output_tokens=params.generation_config.get(
-                            "max_output_tokens"
-                        ),
-                        top_p=params.generation_config.get("top_p"),
-                        response_mime_type="application/json",
-                        response_schema=RESPONSE_SCHEMA,
+            vertexai.init(project=self.project_id, location=params.location)
+            model = GenerativeModel(params.model_name)
+            modality_params = self._get_modality_params(prompt, params)
+            response = model.generate_content(
+                modality_params,
+                generation_config=GenerationConfig(
+                    temperature=params.generation_config.get("temperature"),
+                    max_output_tokens=params.generation_config.get(
+                        "max_output_tokens"
                     ),
-                    safety_settings={
-                        generative_models.HarmCategory.HARM_CATEGORY_HATE_SPEECH: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        generative_models.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        generative_models.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                        generative_models.HarmCategory.HARM_CATEGORY_HARASSMENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
-                    },
-                    stream=False,
-                )
-                return response.text if response else ""
-            except ResourceExhausted as ex:
-                print(f"QUOTA RETRY: {this_retry + 1}. ERROR {str(ex)} ...")
-                wait = 10 * 2**this_retry
-                time.sleep(wait)
-            except AttributeError as ex:
-                error_message = str(ex)
-                if "Content has no parts" in error_message:
-                    # Retry request
-                    print(
-                        f"Error: {ex} Gemini might be blocking the response due to safety issues. Retrying {retries} times using exponential backoff. Retry number {this_retry + 1}...\n"
-                    )
-                    wait = 10 * 2**this_retry
-                    time.sleep(wait)
-
+                    top_p=params.generation_config.get("top_p"),
+                    response_mime_type="application/json",
+                    response_schema=RESPONSE_SCHEMA,
+                ),
+                safety_settings={
+                    generative_models.HarmCategory.HARM_CATEGORY_HATE_SPEECH: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                    generative_models.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                    generative_models.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                    generative_models.HarmCategory.HARM_CATEGORY_HARASSMENT: generative_models.HarmBlockThreshold.BLOCK_ONLY_HIGH,
+                },
+                stream=False,
+            )
+            return response.text if response else ""
         return ""
 
     def _get_modality_params(self, prompt: str, params: LLMParameters) -> list[any]:
@@ -165,54 +149,38 @@ def detect_features_with_llm_in_bulk(
     Returns:
         features: list of evaluated features
     """
+    print("---detect_features_with_llm_in_bulk")
     retries = 3
     for this_retry in range(retries):
-        try:
-            vertex_ai_service = get_vertex_ai_service(config)
-            if llm_params.model_name == config.llm_name:
-                # Gemini 1.5 does not support top_k param
-                if "top_k" in llm_params.generation_config:
-                    del llm_params.generation_config["top_k"]
-                llm_response = vertex_ai_service.execute_gemini_pro(
-                    config=config, prompt=prompt, params=llm_params
-                )
-            else:
-                print(f"LLM {llm_params.model_name} not supported.")
-                return False
-            # Parse response
-            features = json.loads(clean_llm_response(llm_response))
-            if isinstance(features, list) and len(features) > 0:
-                if config.verbose:
-                    print(
-                        f"***Powered by LLMs*** \n\n FEATURES in group {features_group_by}: \n\n {str(features)} \n"
-                    )
-                return features
-            else:
+        vertex_ai_service = get_vertex_ai_service(config)
+        if llm_params.model_name == config.llm_name:
+            # Gemini 1.5 does not support top_k param
+            if "top_k" in llm_params.generation_config:
+                del llm_params.generation_config["top_k"]
+            llm_response = vertex_ai_service.execute_gemini_pro(
+                config=config, prompt=prompt, params=llm_params
+            )
+        else:
+            print(f"LLM {llm_params.model_name} not supported.")
+            return False
+        # Parse response
+        features = json.loads(clean_llm_response(llm_response))
+        if isinstance(features, list) and len(features) > 0:
+            if config.verbose:
                 print(
-                    f"LLM response is not a dict. Response was: {features}. Retrying request {this_retry + 1} times... \n"
+                    f"***Powered by LLMs*** \n\n FEATURES in group {features_group_by}: \n\n {str(features)} \n"
                 )
-                if this_retry == retries - 1:
-                    break
-
-                # Retry if response is not an array or response was empty
-                wait = 10 * 2**this_retry
-                time.sleep(wait)
-        except json.JSONDecodeError as ex:
+            return features
+        else:
+            print(
+                f"LLM response is not a dict. Response was: {features}. Retrying request {this_retry + 1} times... \n"
+            )
             if this_retry == retries - 1:
                 break
 
-            if config.verbose:
-                print(
-                    f"LLM response could not be parsed. Error: {ex}.\n Using string version...\n"
-                )
-                if llm_response:
-                    print(f"***Powered by LLMs*** \n LLM response: {llm_response} \n")
-
-            # Retry if response could not be parsed
+            # Retry if response is not an array or response was empty
             wait = 10 * 2**this_retry
             time.sleep(wait)
-        except Exception as ex:
-            print(ex)  # raise?
     # return empty list if not possible to get response after retries
     return []
 
