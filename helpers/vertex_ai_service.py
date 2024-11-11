@@ -89,6 +89,8 @@ class VertexAIService:
         retries = 3
         for this_retry in range(retries):
             try:
+                print(f"prompt: {prompt}")
+                print(f"params: {params}")
                 vertexai.init(project=self.project_id, location=params.location)
                 model = GenerativeModel(params.model_name)
                 modality_params = self._get_modality_params(prompt, params)
